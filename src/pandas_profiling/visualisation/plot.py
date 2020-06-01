@@ -298,3 +298,17 @@ def density(series, group, x_label, g_label) -> str:
     sns.pairplot(df, hue=g_label)
     # plt.scatter(series.tolist(), group.tolist(), color=color)
     return plot_360_n0sc0pe(plt)
+
+
+def pie_plot(data, legend_kws=None):
+    if legend_kws is None:
+        legend_kws = {}
+
+    def func(pct, allvals):
+        absolute = int(pct / 100. * np.sum(allvals))
+        return "{:.1f}%\n({:d})".format(pct, absolute)
+
+    wedges, _, _ = plt.pie(data, autopct=lambda pct: func(pct, data), textprops=dict(color="w"))
+    plt.legend(wedges, data.index.values, **legend_kws)
+
+    return plot_360_n0sc0pe(plt)

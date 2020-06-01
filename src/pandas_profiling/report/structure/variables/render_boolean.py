@@ -5,14 +5,16 @@ from pandas_profiling.report.presentation.core import (
     FrequencyTableSmall,
     Table,
     VariableInfo,
-)
+    Image)
 from pandas_profiling.report.presentation.frequency_table_utils import freq_table
 from pandas_profiling.report.structure.variables.render_common import render_common
+from pandas_profiling.visualisation.plot import pie_plot
 
 
 def render_boolean(summary):
     varid = summary["varid"]
     n_obs_bool = config["vars"]["bool"]["n_obs"].get(int)
+    image_format = config["plot"]["image_format"].get(str)
 
     # Prepare variables
     template_variables = render_common(summary)
@@ -72,12 +74,20 @@ def render_boolean(summary):
 
     freqtable = FrequencyTable(
         template_variables["freq_table_rows"],
-        name="Frequency Table",
+        name="Common Values",
         anchor_id=f"{varid}frequency_table",
     )
 
+    chart = Image(
+        pie_plot(summary["value_counts"], legend_kws={'loc':'upper right'}),
+        image_format=image_format,
+        alt="Chart",
+        name="Chart",
+        anchor_id=f"{varid}pie_chart",
+    )
+
     template_variables["bottom"] = Container(
-        [freqtable], sequence_type="tabs", anchor_id=f"{varid}bottom"
+        [freqtable, chart], sequence_type="tabs", anchor_id=f"{varid}bottom"
     )
 
     return template_variables

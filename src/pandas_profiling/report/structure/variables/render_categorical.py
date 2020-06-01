@@ -1,8 +1,5 @@
-import pandas as pd
-
 from pandas_profiling.config import config
 from pandas_profiling.report.presentation.core import (
-    HTML,
     Container,
     FrequencyTable,
     FrequencyTableSmall,
@@ -12,7 +9,7 @@ from pandas_profiling.report.presentation.core import (
 )
 from pandas_profiling.report.presentation.frequency_table_utils import freq_table
 from pandas_profiling.report.structure.variables.render_common import render_common
-from pandas_profiling.visualisation.plot import histogram
+from pandas_profiling.visualisation.plot import histogram, pie_plot
 
 
 def render_categorical(summary):
@@ -23,14 +20,6 @@ def render_categorical(summary):
     template_variables = render_common(summary)
 
     # TODO: merge with boolean
-    mini_freq_table_rows = freq_table(
-        freqtable=summary["value_counts"],
-        n=summary["count"],
-        max_number_to_print=n_obs_cat,
-    )
-
-    # Top
-    # Element composition
     info = VariableInfo(
         summary["varid"],
         summary["varname"],
@@ -74,9 +63,14 @@ def render_categorical(summary):
         ]
     )
 
-    fqm = FrequencyTableSmall(mini_freq_table_rows)
+    fqm = FrequencyTableSmall(
+        freq_table(
+            freqtable=summary["value_counts"],
+            n=summary["count"],
+            max_number_to_print=n_obs_cat,
+        )
+    )
 
-    # TODO: settings 3,3,6
     template_variables["top"] = Container([info, table, fqm], sequence_type="grid")
 
     # Bottom
@@ -88,6 +82,17 @@ def render_categorical(summary):
     )
 
     items.append(frequency_table)
+
+    if summary["n_unique"] < 10:
+        items.append(
+            Image(
+                pie_plot(summary["value_counts"], legend_kws={'loc':'upper right'}),
+                image_format=image_format,
+                alt="Chart",
+                name="Chart",
+                anchor_id=f"{varid}pie_chart",
+            )
+        )
 
     check_length = config["vars"]["cat"]["length"].get(bool)
     if check_length:

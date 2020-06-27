@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import numpy as np
 import pandas as pd
+from pandas.core.arrays.integer import _IntegerDtype
 from scipy.stats.stats import chisquare
 from visions.application.summaries.series import (
     file_summary,
@@ -113,6 +114,51 @@ def describe_1d(series: pd.Series) -> dict:
 
         return results_data
 
+    def numeric_stats_pandas(series: pd.Series):
+        def mad(arr):
+            """ Median Absolute Deviation: a "Robust" version of standard deviation.
+                Indices variability of the sample.
+                https://en.wikipedia.org/wiki/Median_absolute_deviation
+            """
+            return np.median(np.abs(arr - np.median(arr)))
+
+        return {
+            "mean": series.mean(),
+            "std": series.std(),
+            "variance": series.var(),
+            "min": series.min(),
+            "max": series.max(),
+            # Unbiased kurtosis obtained using Fisher's definition (kurtosis of normal == 0.0). Normalized by N-1.
+            "kurtosis": series.kurt(),
+            # Unbiased skew normalized by N-1
+            "skewness": series.skew(),
+            "sum": series.sum(),
+            "mad": mad(series.values),
+        }
+
+    def numeric_stats_numpy(present_values):
+        def mad(arr):
+            """ Median Absolute Deviation: a "Robust" version of standard deviation.
+                Indices variability of the sample.
+                https://en.wikipedia.org/wiki/Median_absolute_deviation
+            """
+            return np.median(np.abs(arr - np.median(arr)))
+
+        return {
+            "mean": np.mean(present_values),
+            "std": np.std(present_values, ddof=1),
+            "variance": np.var(present_values, ddof=1),
+            "min": np.min(present_values),
+            "max": np.max(present_values),
+            # Unbiased kurtosis obtained using Fisher's definition (kurtosis of normal == 0.0). Normalized by N-1.
+            "kurtosis": series.kurt(),
+            # Unbiased skew normalized by N-1
+            "skewness": series.skew(),
+            "sum": np.sum(present_values),
+            "mad": mad(present_values),
+            "n_zeros": (series_description["count"] - np.count_nonzero(present_values)),
+        }
+
     def describe_numeric_1d(series: pd.Series, series_description: dict) -> dict:
         """Describe a numeric series.
         Args:
@@ -129,39 +175,28 @@ def describe_1d(series: pd.Series) -> dict:
             https://github.com/astropy/astropy/issues/4927
         """
 
-        def mad(arr):
-            """ Median Absolute Deviation: a "Robust" version of standard deviation.
-                Indices variability of the sample.
-                https://en.wikipedia.org/wiki/Median_absolute_deviation
-            """
-            return np.median(np.abs(arr - np.median(arr)))
-
         quantiles = config["vars"]["num"]["quantiles"].get(list)
 
         n_infinite = ((series == np.inf) | (series == -np.inf)).sum()
 
-        values = series.values
-        present_values = values[~np.isnan(values)]
-        finite_values = values[np.isfinite(values)]
+        if isinstance(series.dtype, _IntegerDtype):
+            stats = numeric_stats_pandas(series)
+            present_values = series.loc[series.notnull()].astype(str(series.dtype).lower())
+            stats["n_zeros"] = (series_description["count"] - np.count_nonzero(present_values))
+            stats["histogram_data"] = present_values
+            finite_values = present_values
+        else:
+            values = series.values
+            present_values = values[~np.isnan(values)]
+            finite_values = values[np.isfinite(values)]
+            stats = numeric_stats_numpy(present_values)
+            stats["histogram_data"] = finite_values
 
-        stats = {
-            "mean": np.mean(present_values),
-            "std": np.std(present_values, ddof=1),
-            "variance": np.var(present_values, ddof=1),
-            "min": np.min(present_values),
-            "max": np.max(present_values),
-            # Unbiased kurtosis obtained using Fisher's definition (kurtosis of normal == 0.0). Normalized by N-1.
-            "kurtosis": series.kurt(),
-            # Unbiased skew normalized by N-1
-            "skewness": series.skew(),
-            "sum": np.sum(present_values),
-            "mad": mad(present_values),
-            "n_zeros": (series_description["count"] - np.count_nonzero(present_values)),
-            "histogram_data": finite_values,
+        stats.update({
             "scatter_data": series,  # For complex
             "p_infinite": n_infinite / series_description["n"],
-            "n_infinite": n_infinite,
-        }
+            "n_infinite": n_infinite
+        })
 
         chi_squared_threshold = config["vars"]["num"]["chi_squared_threshold"].get(
             float
